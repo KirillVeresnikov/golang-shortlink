@@ -1,0 +1,7 @@
+{
+  "paths": {
+    "/go-http": "https://pkg.go.dev/net/http/",
+    "/go-gophers": "https://github.com/shalakhin/gophericons/blob/master/preview.jpg",
+    "/vk": "https://vk.com/kirill.veresnikov"
+  }
+}
