@@ -9,17 +9,12 @@ import (
 
 func InitService(src string, port string) error {
 	if err := json.LoadPaths(src); err != nil {
-		logger.Logger.Error(err, "Error load json file")
 		return err
 	}
-	logger.Logger.Info("Json load: OK")
 
 	httpServer.Response = Response{}
-	logger.Logger.Info("Http server: OK")
-	logger.Logger.Info("READY...")
 
 	if err := httpServer.StartHttpServer(port); err != nil {
-		logger.Logger.Error(err, "Error starting http server")
 		return err
 	}
 	return nil

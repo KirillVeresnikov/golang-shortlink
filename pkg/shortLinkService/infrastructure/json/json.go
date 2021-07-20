@@ -3,14 +3,14 @@ package json
 import (
 	jsonIO "encoding/json"
 	"errors"
-	"golang-shortlink/pkg/shortLinkService/domain"
+	"golang-shortlink/pkg/shortLinkService/model"
 	"io/ioutil"
 )
 
 var paths interface{}
 
 func LoadPaths(src string) error {
-	var jsonFile domain.Json
+	var jsonFile model.URLMapping
 	file, err := ioutil.ReadFile(src)
 	if err != nil {
 		return err
@@ -21,7 +21,7 @@ func LoadPaths(src string) error {
 	}
 
 	paths = jsonFile.Paths
-	if _, ok := paths.(domain.Paths); ok != true {
+	if _, ok := paths.(model.Paths); ok != true {
 		return errors.New("Paths not found")
 	}
 	return nil
@@ -29,7 +29,7 @@ func LoadPaths(src string) error {
 
 func GetURL(longUrl string) (string, error) {
 	var shortUrl string
-	if val, ok := paths.(domain.Paths); ok != true {
+	if val, ok := paths.(model.Paths); ok != true {
 		return "", errors.New("Paths not found")
 	} else {
 		if shortUrl = val[longUrl]; shortUrl == "" {

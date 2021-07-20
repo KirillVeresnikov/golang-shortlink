@@ -11,7 +11,7 @@ func main() {
 	src := "./paths.json"
 	file := flag.Bool("f", false, "a bool")
 	flag.Parse()
-	if *file {
+	if file != nil && *file {
 		src = os.Args[1]
 	}
 
