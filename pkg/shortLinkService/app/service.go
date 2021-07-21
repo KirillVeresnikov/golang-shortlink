@@ -1,35 +1,39 @@
 package app
 
 import (
-	"fmt"
-	"golang-shortlink/pkg/shortLinkService/infrastructure/httpServer"
-	"golang-shortlink/pkg/shortLinkService/infrastructure/json"
-	"golang-shortlink/pkg/shortLinkService/infrastructure/logger"
+	"golang-shortlink/pkg/shortLinkService/infrastructure/jsonProvider"
 )
 
-func InitService(src string, port string) error {
-	if err := json.LoadPaths(src); err != nil {
-		return err
-	}
-
-	httpServer.Response = Response{}
-
-	if err := httpServer.StartHttpServer(port); err != nil {
-		return err
-	}
-	return nil
+type jsonProviderInterface interface {
+	LoadPaths(src string)
+	GetURL(shortURL string) string
+	GetErr() error
 }
 
-type Response struct{}
+type Service struct {
+	jsonProvider jsonProviderInterface
+	src          string
+	Err          error
+}
 
-func (r Response) Handler(path string) string {
-	shortUrl, err := json.GetURL(path)
-	if err != nil {
-		logger.Logger.Error(err, "Error handler")
-		return fmt.Sprintf("<h1>Такой ссылки не существует</h1>")
+func Create(src string) *Service {
+	service := Service{}
+	service.jsonProvider = jsonProvider.Create()
+	service.src = src
+	service.jsonProvider.LoadPaths(service.src)
+	return &service
+}
+
+func (s *Service) GetLongURL(shortURL string) string {
+	longURL := s.jsonProvider.GetURL(shortURL)
+	if err := s.jsonProvider.GetErr(); err != nil {
+		s.Err = err
+		return ""
 	}
-	info := fmt.Sprint("Handler: ", path, " -> ", shortUrl)
-	logger.Logger.Info(info)
-	return fmt.Sprintf("<script>location='%s';</script>", shortUrl)
-	//return shortUrl
+	s.Err = nil
+	return longURL
+}
+
+func (s *Service) GetErr() error {
+	return s.Err
 }
