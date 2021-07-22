@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"golang-shortlink/pkg/shortLinkService/app"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -21,12 +24,18 @@ type httpServer struct {
 func (s *httpServer) startServer() {
 	s.server = &http.Server{Addr: ":8000", Handler: s.handler}
 	go func() {
-		s.server.ListenAndServe()
+		err := s.server.ListenAndServe()
+		if err != nil && err.Error() != errors.New("http: Server closed").Error() {
+			logger.LogFatal("starting fail", err)
+		}
 	}()
 }
 
 func (s *httpServer) shutdownServer() {
-	s.server.Shutdown(context.Background())
+	err := s.server.Shutdown(context.Background())
+	if err != nil {
+		logger.LogFatal("shutdown failed", err)
+	}
 }
 
 func (s *httpServer) getKillSignalChan() {
@@ -55,35 +64,95 @@ type HttpHandler struct{}
 
 func (h HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if URL := r.URL.Path; URL == "/" {
-		fmt.Fprintln(w, "Введите короткую ссылку")
+		_, wErr := fmt.Fprintln(w, "Введите короткую ссылку")
+		if wErr != nil {
+			logger.LogFatal("response writer error", wErr)
+		}
 	} else {
 		longURL := service.GetLongURL(URL)
 		if err := service.GetErr(); err == nil {
-			//http.Redirect(w, r, longURL, 302)
-			fmt.Fprintln(w, longURL)
+			http.Redirect(w, r, longURL, http.StatusFound)
+			logger.LogServerError(URL, "successful")
 		} else {
-			fmt.Fprintln(w, "Error: ", err)
+			logger.LogError(r.URL, err)
+			_, wErr := fmt.Fprintln(w, "Короткая ссылка не найдена")
+			if wErr != nil {
+				logger.LogFatal("response writer error", wErr)
+			}
 		}
 	}
 }
 
 var service Service
 var server httpServer
+var logger serverErrorLogger
 
 func main() {
+	log := initializeLogger("debug")
+	logger = serverErrorLogger{log}
+
 	src := "./paths.json"
 	file := flag.Bool("f", false, "a file path")
 	flag.Parse()
 	if file != nil && *file {
-		src = os.Args[1]
+		if len(os.Args) >= 3 {
+			src = os.Args[2]
+		} else {
+			src = ""
+		}
 	}
 
 	service = app.Create(src)
+	if err := service.GetErr(); err != nil {
+		logger.LogFatal("create service failed", err)
+	}
+
 	server = httpServer{}
 	server.handler = HttpHandler{}
 
 	server.startServer()
+	logger.LogInfo("starting complete")
 	server.getKillSignalChan()
 	server.waitKillSignalChan()
 	server.shutdownServer()
+}
+
+func initializeLogger(logLevelParam string) *logrus.Logger {
+	logger := logrus.New()
+	logger.SetFormatter(&logrus.JSONFormatter{})
+
+	logLevel, err := logrus.ParseLevel(logLevelParam)
+	if err != nil {
+		logrus.WithError(err).Fatal()
+	}
+	logger.SetLevel(logLevel)
+
+	return logger
+}
+
+type serverErrorLogger struct {
+	Logger *logrus.Logger
+}
+
+func (logger *serverErrorLogger) LogServerError(address string, info string) {
+	logger.Logger.WithFields(logrus.Fields{
+		"address": address,
+	}).Info(info)
+}
+
+func (logger *serverErrorLogger) LogError(requestURL *url.URL, err error) {
+	logger.Logger.WithFields(logrus.Fields{
+		"err": err.Error(),
+		"url": requestURL.String(),
+	}).Error("http request failed")
+}
+
+func (logger *serverErrorLogger) LogInfo(info string) {
+	logger.Logger.Info(info)
+}
+
+func (logger *serverErrorLogger) LogFatal(info string, err error) {
+	logger.Logger.WithFields(logrus.Fields{
+		"err": err.Error(),
+	}).Fatal(info)
 }

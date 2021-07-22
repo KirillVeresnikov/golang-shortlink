@@ -21,6 +21,9 @@ func Create(src string) *Service {
 	service.jsonProvider = jsonProvider.Create()
 	service.src = src
 	service.jsonProvider.LoadPaths(service.src)
+	if err := service.jsonProvider.GetErr(); err != nil {
+		service.Err = err
+	}
 	return &service
 }
 
@@ -35,5 +38,6 @@ func (s *Service) GetLongURL(shortURL string) string {
 }
 
 func (s *Service) GetErr() error {
+	defer func(s *Service) { s.Err = nil }(s)
 	return s.Err
 }
